@@ -1,0 +1,36 @@
+# 雨量站 → 监测节点 的分配
+# 简单模式：每个节点指定 1 个主站；如需多站加权，写入 weights 字典。
+# 后续可由 spatial 模块基于 Thiessen polygons 自动生成；MVP 阶段手配。
+
+stations:
+  V8805: { name: "雨量站 V8805", lon: null, lat: null }
+  V8870: { name: "雨量站 V8870", lon: null, lat: null }
+  V8872: { name: "雨量站 V8872", lon: null, lat: null }
+  V8874: { name: "雨量站 V8874", lon: null, lat: null }
+  V8883: { name: "雨量站 V8883", lon: null, lat: null }
+
+# node_id -> station(s)
+assignments:
+  S01: { primary: V8805 }
+  S02: { primary: V8805 }
+  S03: { primary: V8805 }
+  S04: { primary: V8870 }
+  S05: { primary: V8870 }
+  S06: { primary: V8870 }
+  S07: { primary: V8872 }
+  S08: { primary: V8872 }
+  S09: { primary: V8874 }
+  S10: { primary: V8874 }
+  W11: { primary: V8805 }
+  W12: { primary: V8805 }
+  W13: { primary: V8805 }
+  W14: { primary: V8870 }
+  W15: { primary: V8870 }
+  W16: { primary: V8870 }
+  W17: { primary: V8872 }
+  W18: { primary: V8883 }
+  W19: { primary: V8883 }
+
+# 多站加权示例（未启用，留作格式参考）：
+#   W13:
+#     weights: { V8805: 0.6, V8870: 0.4 }

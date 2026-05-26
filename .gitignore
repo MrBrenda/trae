@@ -1,0 +1,66 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Office 临时/锁文件
+~$*
+*.tmp
+*.bak
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+build/
+dist/
+
+# 日志/数据缓存
+*.log
+.cache/
+
+# === project-specific ===
+# 原始监测数据（按规模可能很大），仅保留目录结构
+data/raw/**
+!data/raw/
+!data/raw/*/
+!data/raw/**/.gitkeep
+
+# 中间/处理结果（可重算）
+data/interim/**
+!data/interim/
+!data/interim/.gitkeep
+data/processed/**
+!data/processed/
+!data/processed/.gitkeep
+
+# external 默认排除大文件，但允许 sites.xlsx 入库（管理员维护）
+data/external/*.shp
+data/external/*.dbf
+data/external/*.shx
+data/external/*.prj
+data/external/*.cpg
+data/external/*.gpkg
+
+# ingest 状态文件（机器本地）
+data/_ingest_state.json
+
+# 报告产物：默认追踪 Markdown 与 figures（git 友好），DOCX 不追踪
+reports/*/report.docx
+reports/latest
+
+# 文档作为参考资料保留在仓库
+!*.docx

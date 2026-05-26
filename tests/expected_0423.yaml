@@ -1,0 +1,70 @@
+# 0423 docx 回归基准 — 待人工誊录
+#
+# 期望值粒度：每事件 × 每节点的关键指标。
+# 当原始数据放入 data/raw/ 后，monitorda verify --against tests/expected_0423.yaml
+# 会逐字段比对实际值与期望值，超出 settings.yaml#verify 中的容差即报错。
+#
+# 格式：
+#   rdii:
+#     <event_id>:
+#       <node_id>:
+#         v_rdii_m3:           <number>
+#         illicit_area_km2_low: <number>   # 用 C=0.78
+#         illicit_area_km2_high: <number>  # 用 C=0.90
+#         lag_start_h:         <number>
+#         lag_peak_h:          <number>
+#         rise_amp_m:          <number>
+#         recession_halflife_h: <number>
+#
+#   diagnostics:
+#     <node_id>:
+#       category:        混接 | 入渗 | 直连 | 雨水管低效 | 未定 | 数据不足
+#       rdii_grade:      High | Medium | Low | NA
+#       notes:           任意字符串
+#
+# 注意 event_id 命名规则：E<YYYYMMDD>-<station_id>
+# 0423 报告里 5 场事件大致对应（需要进一步与降雨数据核对）：
+#   E20250614-V8805  (节点1-10 / 11-19 各 station 匹配)
+#   E20250719-V8805
+#   E20250916-V8805
+#   E20251010-V8805
+#   E20260314-V8805
+
+rdii: {}
+  # 示例（占位，待誊录）：
+  # E20251010-V8805:
+  #   W13:
+  #     rise_amp_m: 4.0
+  #     lag_start_h: 4.0
+  #     recession_halflife_h: 6.0
+
+diagnostics:
+  # 来自 0423 表 5.4 + 0423 摘要描述：
+  W13:
+    category: 混接
+    rdii_grade: High
+    notes: "时滞 2–6h，升幅 3.1–4.2m"
+  W15:
+    category: 混接
+    rdii_grade: High
+    notes: "时滞 2–11h，升幅 3.3–4.0m；Event 4 近满管"
+  W19:
+    category: 直连
+    rdii_grade: High
+    notes: "响应 < 2min，升幅 1.8–2.6m"
+  W17:
+    category: 入渗
+    rdii_grade: Low
+    notes: "回落半衰期 20–28h"
+  W16:
+    category: 未定
+    rdii_grade: Medium
+    notes: "中低；入流 + 入渗混合"
+  S06:
+    category: 雨水管低效
+    rdii_grade: Low
+    notes: "雨水管汇雨效率低"
+  S07:
+    category: 雨水管低效
+    rdii_grade: Low
+    notes: "雨水管汇雨效率低"
