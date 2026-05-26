@@ -1,0 +1,129 @@
+# 监测节点规范 ID ↔ 中文名 / 位置
+# 字段说明：
+#   name_zh         中文名
+#   road            所在道路
+#   kind            stormwater | sewage
+#   orig_index      原报告中的"节点 N"序号
+#   diameter_m      管径（米）；后续从 sites.xlsx 或 shp 补全
+#   pipe_length_m   该节点下游管段长度（米）；可后续补
+#   service_area_ha 该节点贡献汇水区面积（公顷）；可后续补
+#   note            原报告中的诊断备注
+
+nodes:
+
+  # === 雨水节点（S01–S10）===
+  S01:
+    name_zh: "雨水节点1"
+    road: ""
+    kind: stormwater
+    orig_index: 1
+  S02:
+    name_zh: "雨水节点2"
+    road: ""
+    kind: stormwater
+    orig_index: 2
+  S03:
+    name_zh: "雨水节点3"
+    road: ""
+    kind: stormwater
+    orig_index: 3
+  S04:
+    name_zh: "雨水节点4"
+    road: ""
+    kind: stormwater
+    orig_index: 4
+  S05:
+    name_zh: "雨水节点5"
+    road: ""
+    kind: stormwater
+    orig_index: 5
+  S06:
+    name_zh: "雨水节点6"
+    road: ""
+    kind: stormwater
+    orig_index: 6
+    note: "雨天响应弱，疑似汇雨能力不足，雨水进入污水系统"
+  S07:
+    name_zh: "雨水节点7"
+    road: ""
+    kind: stormwater
+    orig_index: 7
+    note: "同节点 6，汇雨效率低"
+  S08:
+    name_zh: "雨水节点8"
+    road: ""
+    kind: stormwater
+    orig_index: 8
+  S09:
+    name_zh: "雨水节点9"
+    road: ""
+    kind: stormwater
+    orig_index: 9
+  S10:
+    name_zh: "雨水节点10"
+    road: ""
+    kind: stormwater
+    orig_index: 10
+
+  # === 污水节点（W11–W19）===
+  W11:
+    name_zh: "污水节点11"
+    road: ""
+    kind: sewage
+    orig_index: 11
+    note: "数据缺失/零值占比 34–99%"
+  W12:
+    name_zh: "污水节点12"
+    road: ""
+    kind: sewage
+    orig_index: 12
+    note: "2026-02 之前无数据"
+  W13:
+    name_zh: "污水节点13"
+    road: "太华北路与红旗东路十字西"
+    kind: sewage
+    orig_index: 13
+    note: "RDII 高；时滞 2–6h，升幅 3.1–4.2m；入流主导"
+  W14:
+    name_zh: "污水节点14"
+    road: "红旗东路截污泵站上游"
+    kind: sewage
+    orig_index: 14
+    note: "受截污泵站运行干扰；Event 4 响应被掩盖"
+  W15:
+    name_zh: "污水节点15"
+    road: "经九路与凤城九路十字南"
+    kind: sewage
+    orig_index: 15
+    note: "RDII 高；时滞 2–11h，升幅 3.3–4.0m；Event 4 近满管"
+  W16:
+    name_zh: "污水节点16"
+    road: "红旗东路与广运潭大道东侧"
+    kind: sewage
+    orig_index: 16
+    note: "中低；入流 + 入渗混合"
+  W17:
+    name_zh: "污水节点17"
+    road: "灞河西路与浐灞三路"
+    kind: sewage
+    orig_index: 17
+    note: "低；回落半衰期 20–28h，入渗主导"
+  W18:
+    name_zh: "污水节点18"
+    road: ""
+    kind: sewage
+    orig_index: 18
+    note: "数据缺失/零值占比高"
+  W19:
+    name_zh: "污水节点19"
+    road: "北二环辛家庙立交上游"
+    kind: sewage
+    orig_index: 19
+    note: "RDII 高；响应 < 2min，升幅 1.8–2.6m；直连嫌疑"
+
+# 区域汇总信息（来自 0423 报告）
+study_area:
+  name: "第五污水厂服务范围"
+  area_ha: 4568
+  sewage_network_length_km: 457
+  density_km_per_km2: 10

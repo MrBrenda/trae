@@ -1,0 +1,66 @@
+# monitorda 全局阈值 / 调参文件
+# 所有数值阈值集中此处，便于不改代码调参。
+
+timezone: "Asia/Shanghai"
+
+# 数据接入
+ingest:
+  # 允许的原始文件扩展名
+  accept_extensions: [".csv", ".xlsx", ".xls", ".txt"]
+  # 原始时间戳列的常见命名（按优先级匹配）
+  ts_column_candidates: ["timestamp", "time", "ts", "datetime", "采集时间", "时间", "数据时间"]
+  # 自动识别 node_id 的正则（从文件名或表内列匹配）
+  node_id_pattern: "(S0[1-9]|S10|W1[1-9])"
+
+# 降雨事件识别（events.detect_events 使用）
+events:
+  wet_hour_threshold_mm: 0.5        # 单小时降雨 ≥ 0.5mm 记作 wet hour
+  min_event_total_mm: 2.0           # 事件累计 ≥ 2mm 才纳入
+  min_event_duration_h: 2.0         # 事件持续 ≥ 2h
+  internal_dry_gap_h: 3.0           # 事件内允许的最长干口
+  merge_gap_h: 6.0                  # 相邻事件端到端 < 6h 且空隙降雨 < merge_gap_mm 则合并
+  merge_gap_mm: 1.0
+  antecedent_dry_h: 24.0            # 前置干天阈值，否则标 compound
+
+# BWF / 旱天基线
+bwf:
+  window_days: 14                   # 事件前后各取 ±N 天的旱天数据求基线
+  exclude_radius_h: 48              # 旱天窗口内排除任一事件 ±48h 内的数据
+  min_samples: 144                  # 一日 10min 数据 = 144 条，至少要够这么多样本
+  estimator: "median"               # median | mean | trimmed_mean
+
+# RDII 积分
+rdii:
+  recession_tail_h: 48              # 事件结束后再延 N 小时计入 RDII
+
+# 等效混接面积反推
+illicit_area:
+  runoff_coeff_low: 0.78
+  runoff_coeff_high: 0.90
+
+# 时滞 / 升幅判定
+response:
+  rise_threshold_m: 0.05            # 起始时滞：液位上升超此值即认为已响应
+  lag_max_hours: 24                 # 超过此小时数仍未上升记为未响应
+  recession_fit_window_h: 48        # 回落段拟合窗口
+
+# 诊断分级阈值（diagnose.grade_rdii）
+diagnose:
+  rise_amp_high_m: 3.0              # 升幅 ≥ 3m 记为 High
+  rise_amp_low_m: 0.5               # 升幅 ≤ 0.5m 记为 Low（中间为 Medium）
+  direct_connection_lag_min: 5      # 时滞 ≤ 5min 视为直连嫌疑
+  infiltration_halflife_h: 20       # 回落半衰期 ≥ 20h 视为入渗主导
+  inflow_halflife_h: 8              # 半衰期 ≤ 8h 视为入流主导
+
+# 数据质量
+clean:
+  flow_impossible_factor: 10.0      # 流量 > 10×满管流量 视为不可能值
+  stuck_zero_window_h: 6            # 连续 N 小时为 0 视为 stuck-zero
+  outlier_iqr_k: 5.0                # IQR × k 之外视为离群（对水力极值容忍）
+
+# 回归测试容差
+verify:
+  rdii_tolerance_pct: 10            # 相对误差容忍
+  area_tolerance_pct: 10
+  qrl_tolerance_pct: 10
+  lag_tolerance_h: 0.5

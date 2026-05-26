@@ -1,0 +1,80 @@
+# 排水管网监测数据诊断报告 — {{ run_date }}
+
+> 本报告由 `monitorda` 自动生成，方法论锚定《红旗东路积涝整治及管网改造专题研究阶段性成果报告 0423》。
+> 时间窗：**{{ window_start }} → {{ window_end }}** ｜ 节点数：{{ n_nodes }} ｜ 事件数：{{ n_events }}
+
+---
+
+## 1. 数据接入与质量
+
+{% if quality_table %}
+| 节点 | 总样本 | 可用 | null | stuck0 | impossible | outlier | 可用率 | 等级 |
+|---|--:|--:|--:|--:|--:|--:|--:|:--:|
+{%- for r in quality_table %}
+| {{ r.node_id }} | {{ r.total }} | {{ r.good }} | {{ r.null }} | {{ r.stuck0 }} | {{ r.impossible }} | {{ r.outlier }} | {{ '%.1f' % (r.usable_rate * 100) }}% | {{ r.grade }} |
+{%- endfor %}
+{% else %}
+*暂无质量数据*
+{% endif %}
+
+---
+
+## 2. 降雨事件汇总（表 3.1/3.2）
+
+{% if events_table %}
+| 事件 | 站点 | 起 | 止 | 时长 h | 累计 mm | 峰值 mm/h | 前置干天 d | compound |
+|---|---|---|---|--:|--:|--:|--:|:--:|
+{%- for e in events_table %}
+| {{ e.event_id }} | {{ e.station_id }} | {{ e.t_start }} | {{ e.t_end }} | {{ '%.1f' % e.duration_h }} | {{ '%.1f' % e.total_mm }} | {{ '%.1f' % e.max_intensity_mmh }} | {{ '%.2f' % (e.antecedent_dry_d or 0) }} | {{ '✓' if e.compound else '' }} |
+{%- endfor %}
+{% else %}
+*未识别到事件*
+{% endif %}
+
+---
+
+## 3. RDII 分级 — 表 4.4
+
+{% if rdii_grades %}
+| 节点 | 中文名 | 类型 | 中位升幅 m | 中位起始时滞 h | 半衰期 h | 分级 |
+|---|---|---|--:|--:|--:|:--:|
+{%- for r in rdii_grades %}
+| {{ r.node_id }} | {{ r.name_zh }} | {{ r.kind }} | {{ '%.2f' % r.rise_amp_m if r.rise_amp_m is not none else '—' }} | {{ '%.1f' % r.lag_start_h if r.lag_start_h is not none else '—' }} | {{ '%.1f' % r.halflife_h if r.halflife_h is not none else '—' }} | **{{ r.grade }}** |
+{%- endfor %}
+{% endif %}
+
+---
+
+## 4. 节点综合诊断 — 表 5.4
+
+{% if diagnostics %}
+| 节点 | 中文名 | 事件数 | 平均 illicit area km² | 中位升幅 m | 中位时滞 h | 半衰期 h | 分类 | 置信 | 备注 |
+|---|---|--:|--:|--:|--:|--:|:--:|--:|---|
+{%- for d in diagnostics %}
+| {{ d.node_id }} | {{ d.name_zh }} | {{ d.n_events }} | {{ '%.3f' % d.mean_illicit_area_km2 if d.mean_illicit_area_km2 is not none else '—' }} | {{ '%.2f' % d.mean_rise_amp_m if d.mean_rise_amp_m is not none else '—' }} | {{ '%.1f' % d.median_lag_start_h if d.median_lag_start_h is not none else '—' }} | {{ '%.1f' % d.median_halflife_h if d.median_halflife_h is not none else '—' }} | **{{ d.category }}** | {{ '%.2f' % d.evidence_score }} | {{ d.notes }} |
+{%- endfor %}
+{% endif %}
+
+---
+
+## 5. 图表
+
+### 5.1 监测节点空间分布与诊断类别
+
+![site map](figures/site_map.png)
+
+### 5.2 各节点雨天响应升幅
+
+![rise amp](figures/node_rise_amp.png)
+
+### 5.3 第五污水厂入流时间序列
+
+![plant inlet](figures/plant_inlet.png)
+
+---
+
+## 6. 附录
+
+- 表数据 CSV：`tables/` 目录
+- 0423 报告作为方法论锚点：`红旗东路积涝整治及管网改造专题研究阶段性成果报告0423.docx`
+- 配置文件：`config/settings.yaml`、`config/topology_overrides.yaml`
