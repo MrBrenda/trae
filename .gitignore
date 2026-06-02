@@ -64,3 +64,5 @@ reports/latest
 
 # 文档作为参考资料保留在仓库
 !*.docx
+# 大体积 PDF 原始资料不入库（已提取为 docs/_converted/ 下的 Markdown）
+*.pdf
