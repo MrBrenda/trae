@@ -1,127 +1,276 @@
-# 监测节点规范 ID ↔ 中文名 / 位置
+# 监测节点规范 ID ↔ 中文名 / 位置 / 拼音缩写
+#
 # 字段说明：
-#   name_zh         中文名
-#   road            所在道路
+#   name_zh         中文简称（用于报告展示）
+#   road            精确位置描述（与数据文件名匹配，用于 ingest 自动识别）
+#   pinyin          路名拼音首字母缩写（用于保密场景下的文件命名，同样可被 ingest 识别）
 #   kind            stormwater | sewage
-#   orig_index      原报告中的"节点 N"序号
-#   diameter_m      管径（米）；后续从 sites.xlsx 或 shp 补全
-#   pipe_length_m   该节点下游管段长度（米）；可后续补
-#   service_area_ha 该节点贡献汇水区面积（公顷）；可后续补
-#   note            原报告中的诊断备注
+#   orig_index      0423 报告中的"节点 N"序号（无官方编号的扩展节点留空）
+#   proj_x / proj_y GIS 系统投影坐标（西安地区局部投影，非 WGS84）
+#   note            原报告诊断备注 / 现场情况
+#
+# 节点 ID 规则：
+#   S01–S10  官方雨水节点（0423 报告）
+#   S11–S99  扩展雨水节点（超出 0423 报告范围，不参与回归测试）
+#   W11–W19  官方污水节点（0423 报告）
+#   W20–W99  扩展污水节点（超出 0423 报告范围，不参与回归测试）
 
 nodes:
 
-  # === 雨水节点（S01–S10）===
+  # ══════════════════════════════════════════════════════════════════════
+  # 雨水节点（S01–S10）— 0423 报告官方节点
+  # ══════════════════════════════════════════════════════════════════════
   S01:
-    name_zh: "雨水节点1"
-    road: ""
+    name_zh: "太华北路仁谨路连通管"
+    road:    "太华北路仁谨路连通管南侧上游"
+    pinyin:  "THBL-RJLLT"
     kind: stormwater
     orig_index: 1
+    proj_x: 589886.194
+    proj_y: 3803272.622
+
   S02:
-    name_zh: "雨水节点2"
-    road: ""
+    name_zh: "汉渠南路太华北路东侧"
+    road:    "汉渠南路与太华北路十字东侧"
+    pinyin:  "HQNL-THBL-D"
     kind: stormwater
     orig_index: 2
+    proj_x: 589938.541
+    proj_y: 3803748.839
+
   S03:
-    name_zh: "雨水节点3"
-    road: ""
+    name_zh: "汉渠南路太华北路北侧"
+    road:    "汉渠南路与太华北路十字北侧"
+    pinyin:  "HQNL-THBL-B"
     kind: stormwater
     orig_index: 3
+    proj_x: 589881.603
+    proj_y: 3803795.658
+
   S04:
-    name_zh: "雨水节点4"
-    road: ""
+    name_zh: "北三环太华路西侧"
+    road:    "北三环与太华路十字西侧"
+    pinyin:  "BSH-THL-X"
     kind: stormwater
     orig_index: 4
+    proj_x: 589834.077
+    proj_y: 3804555.824
+
   S05:
-    name_zh: "雨水节点5"
-    road: ""
+    name_zh: "北三环太华路东侧"
+    road:    "北三环与太华路十字东侧"
+    pinyin:  "BSH-THL-D"
     kind: stormwater
     orig_index: 5
+    proj_x: 589936.708
+    proj_y: 3804536.936
+
   S06:
-    name_zh: "雨水节点6"
-    road: ""
+    name_zh: "红旗东路D3000"
+    road:    "红旗东路D3000管道"
+    pinyin:  "HQDL-D3000"
     kind: stormwater
     orig_index: 6
-    note: "雨天响应弱，疑似汇雨能力不足，雨水进入污水系统"
+    proj_x: 591335.875
+    proj_y: 3803524.823
+
   S07:
-    name_zh: "雨水节点7"
-    road: ""
+    name_zh: "红旗东路D2200"
+    road:    "红旗东路D2200管道"
+    pinyin:  "HQDL-D2200"
     kind: stormwater
     orig_index: 7
-    note: "同节点 6，汇雨效率低"
+    proj_x: 591322.333
+    proj_y: 3803518.875
+    note: "RDII 高；时滞 2–6h，升幅 3.1–4.2m；入流主导"
+
   S08:
-    name_zh: "雨水节点8"
-    road: ""
+    name_zh: "截污泵站下游D3000"
+    road:    "截污泵站下游D3000管道"
+    pinyin:  "JWBZ-XY-D3000"
     kind: stormwater
     orig_index: 8
+    proj_x: 591775.618
+    proj_y: 3803502.776
+
   S09:
-    name_zh: "雨水节点9"
-    road: ""
+    name_zh: "红旗路泵站下游3000"
+    road:    "红旗路泵站下游3000管道"
+    pinyin:  "HQL-BZXY-3000"
     kind: stormwater
     orig_index: 9
+    proj_x: 592080.842
+    proj_y: 3803509.023
+
   S10:
-    name_zh: "雨水节点10"
-    road: ""
+    name_zh: "北辰路凤城八路南侧路东"
+    road:    "北辰路凤城八路十字南侧路东D1500管段"
+    pinyin:  "BCL-FCBL-ND"
     kind: stormwater
     orig_index: 10
+    proj_x: 591198.605
+    proj_y: 3802186.49
 
-  # === 污水节点（W11–W19）===
+  # ══════════════════════════════════════════════════════════════════════
+  # 污水节点（W11–W19）— 0423 报告官方节点
+  # ══════════════════════════════════════════════════════════════════════
   W11:
-    name_zh: "污水节点11"
-    road: ""
+    name_zh: "北二环辛家庙立交"
+    road:    "北二环辛家庙立交"
+    pinyin:  "BEH-XJM"
     kind: sewage
     orig_index: 11
-    note: "数据缺失/零值占比 34–99%"
+    proj_x: 591117.496
+    proj_y: 3798709.873
+    note: "注意与 W19（立交上游）区分；数据缺失/零值占比 34–99%"
+
   W12:
-    name_zh: "污水节点12"
-    road: ""
+    name_zh: "太华北路凤城九路南侧"
+    road:    "太华北路凤城九路南侧"
+    pinyin:  "THBL-FCJL-N"
     kind: sewage
     orig_index: 12
+    proj_x: 589745.151
+    proj_y: 3802787.828
     note: "2026-02 之前无数据"
+
   W13:
-    name_zh: "污水节点13"
-    road: "太华北路与红旗东路十字西"
+    name_zh: "太华北路红旗东路西侧"
+    road:    "太华北路与红旗东路十字西"
+    pinyin:  "THBL-HQDL-X"
     kind: sewage
     orig_index: 13
+    proj_x: 589783.761
+    proj_y: 3803530.777
     note: "RDII 高；时滞 2–6h，升幅 3.1–4.2m；入流主导"
+
   W14:
-    name_zh: "污水节点14"
-    road: "红旗东路截污泵站上游"
+    name_zh: "红旗东路截污泵站上游"
+    road:    "红旗东路截污泵站上游"
+    pinyin:  "HQDL-JWBZ-SY"
     kind: sewage
     orig_index: 14
+    proj_x: 591448.822
+    proj_y: 3803531.357
     note: "受截污泵站运行干扰；Event 4 响应被掩盖"
+
   W15:
-    name_zh: "污水节点15"
-    road: "经九路与凤城九路十字南"
+    name_zh: "经九路凤城九路南侧"
+    road:    "经九路与凤城九路十字南"
+    pinyin:  "JJL-FCJL-N"
     kind: sewage
     orig_index: 15
+    proj_x: 590149.754
+    proj_y: 3802844.055
     note: "RDII 高；时滞 2–11h，升幅 3.3–4.0m；Event 4 近满管"
+
   W16:
-    name_zh: "污水节点16"
-    road: "红旗东路与广运潭大道东侧"
+    name_zh: "红旗东路广运潭大道东侧"
+    road:    "红旗东路与广运潭大道十字东侧"
+    pinyin:  "HQDL-GYT-D"
     kind: sewage
     orig_index: 16
+    proj_x: 591940.484
+    proj_y: 3803492.179
     note: "中低；入流 + 入渗混合"
+
   W17:
-    name_zh: "污水节点17"
-    road: "灞河西路与浐灞三路"
+    name_zh: "灞河西路浐灞三路南侧"
+    road:    "灞河西路浐灞三路十字南"
+    pinyin:  "BHXL-CBSL-N"
     kind: sewage
     orig_index: 17
+    proj_x: 593686.627
+    proj_y: 3800491.284
     note: "低；回落半衰期 20–28h，入渗主导"
+
   W18:
-    name_zh: "污水节点18"
-    road: ""
+    name_zh: "北辰路北二环南侧"
+    road:    "北辰路北二环十字南侧"
+    pinyin:  "BCL-BEH-N"
     kind: sewage
     orig_index: 18
-    note: "数据缺失/零值占比高"
+    proj_x: 591209.27
+    proj_y: 3798223.129
+
   W19:
-    name_zh: "污水节点19"
-    road: "北二环辛家庙立交上游"
+    name_zh: "北二环辛家庙立交上游"
+    road:    "北二环辛家庙立交上游"
+    pinyin:  "BEH-XJM-SY"
     kind: sewage
     orig_index: 19
+    proj_x: 591273.699
+    proj_y: 3798716.508
     note: "RDII 高；响应 < 2min，升幅 1.8–2.6m；直连嫌疑"
 
+  # ══════════════════════════════════════════════════════════════════════
+  # 扩展雨水节点（S11–）— 超出 0423 报告范围，不参与回归测试
+  # ══════════════════════════════════════════════════════════════════════
+  S11:
+    name_zh: "凤城八路太华北路东侧"
+    road:    "凤城八路与太华北路十字东侧"
+    pinyin:  "FCBL-THBL-D"
+    kind: stormwater
+    orig_index: null
+    proj_x: 589144.793
+    proj_y: 3801962.221
+
+  S12:
+    name_zh: "灞十雨水泵站进场口"
+    road:    "灞十雨水泵站（进场口)"
+    pinyin:  "BSYS-BZCJK"
+    kind: stormwater
+    orig_index: null
+
+  # ══════════════════════════════════════════════════════════════════════
+  # 扩展污水节点（W20–）— 超出 0423 报告范围，不参与回归测试
+  # ══════════════════════════════════════════════════════════════════════
+  W20:
+    name_zh: "御井路红旗东路南侧"
+    road:    "御井路与红旗东路十字南侧"
+    pinyin:  "YJL-HQDL-N"
+    kind: sewage
+    orig_index: null
+    proj_x: 590523.39
+    proj_y: 3803456.884
+
+  W21:
+    name_zh: "太华北路北二环南侧38m"
+    road:    "太华北路北二环十字南侧(路口井向南38m）"
+    pinyin:  "THBL-BEH-N38"
+    kind: sewage
+    orig_index: null
+
+  W22:
+    name_zh: "凤城八路太华北路北侧"
+    road:    "凤城八路与太华北路十字北侧"
+    pinyin:  "FCBL-THBL-B"
+    kind: sewage
+    orig_index: null
+    proj_x: 589014.873
+    proj_y: 3801987.425
+
+  W23:
+    name_zh: "北二环太华路立交东侧"
+    road:    "北二环太华路立交东侧"
+    pinyin:  "BEH-THL-D"
+    kind: sewage
+    orig_index: null
+    proj_x: 589218.965
+    proj_y: 3798669.727
+
+  W24:
+    name_zh: "北二环太华路立交北侧"
+    road:    "北二环太华路立交北侧"
+    pinyin:  "BEH-THL-B"
+    kind: sewage
+    orig_index: null
+    proj_x: 588974.636
+    proj_y: 3798667.397
+
+# ──────────────────────────────────────────────────────────────────────────────
 # 区域汇总信息（来自 0423 报告）
+# ──────────────────────────────────────────────────────────────────────────────
 study_area:
   name: "第五污水厂服务范围"
   area_ha: 4568

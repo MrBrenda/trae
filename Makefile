@@ -6,13 +6,15 @@ PIP    := $(VENV)/bin/pip
 PY     := $(VENV)/bin/python
 MON    := $(VENV)/bin/monitorda
 
-.PHONY: help venv install dev-install test test-cov lint fmt clean run report verify-0423 ingest events diagnose
+.PHONY: help venv install dev-install app-install app test test-cov lint fmt clean run report verify-0423 ingest events diagnose
 
 help:
 	@echo "Available targets:"
 	@echo "  make venv          - create .venv with Python 3.11+"
 	@echo "  make install       - install runtime deps (editable)"
 	@echo "  make dev-install   - install runtime + dev deps"
+	@echo "  make app-install   - install app extras (streamlit + plotly)"
+	@echo "  make app           - launch Streamlit dashboard (http://localhost:8501)"
 	@echo "  make run           - end-to-end pipeline (today's window)"
 	@echo "  make report        - re-render report from latest processed"
 	@echo "  make ingest        - scan data/raw/ and merge into interim"
@@ -33,6 +35,12 @@ install: venv
 
 dev-install: venv
 	$(PIP) install -e ".[dev]"
+
+app-install: venv
+	$(PIP) install -e ".[app]"
+
+app: venv
+	echo "" | STREAMLIT_BROWSER_GATHER_USAGE_STATS=false $(VENV)/bin/streamlit run app/streamlit_app.py
 
 run:
 	$(MON) run

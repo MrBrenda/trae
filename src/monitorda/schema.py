@@ -50,16 +50,17 @@ RAINFALL_HOURLY = DataFrameSchema({
 
 
 EVENTS = DataFrameSchema({
-    "event_id": Column(str, Check.str_matches(r"^E\d{8}-")),
-    "station_id": Column(str),
-    "t_start": Column(pa.DateTime),
-    "t_peak": Column(pa.DateTime, nullable=True),
-    "t_end": Column(pa.DateTime),
-    "duration_h": Column(float, Check.gt(0)),
-    "total_mm": Column(float, Check.ge(0)),
-    "max_intensity_mmh": Column(float, Check.ge(0)),
-    "antecedent_dry_d": Column(float, Check.ge(0), nullable=True),
-    "compound": Column(bool),
+    "event_id":           Column(str, Check.str_matches(r"^E\d{8}-")),
+    "station_id":         Column(str),
+    "n_stations":         Column(int, Check.ge(1)),
+    "t_start":            Column(pa.DateTime),
+    "t_peak":             Column(pa.DateTime, nullable=True),
+    "t_end":              Column(pa.DateTime),
+    "duration_h":         Column(float, Check.gt(0)),
+    "total_mm":           Column(float, Check.ge(0)),
+    "max_intensity_mmh":  Column(float, Check.ge(0)),
+    "antecedent_dry_d":   Column(float, Check.ge(0), nullable=True),
+    "compound":           Column(bool),
 }, strict=False, coerce=True)
 
 
@@ -91,16 +92,17 @@ RDII_BY_EVENT_NODE = DataFrameSchema({
 
 
 NODE_DIAGNOSTICS = DataFrameSchema({
-    "node_id": Column(str),
-    "name_zh": Column(str),
-    "kind": Column(str, Check.isin(NODE_KINDS)),
-    "n_events": Column(int, Check.ge(0)),
-    "mean_qrl": Column(float, nullable=True),
+    "node_id":               Column(str),
+    "name_zh":               Column(str),
+    "kind":                  Column(str, Check.isin(NODE_KINDS)),
+    "n_events":              Column(int, Check.ge(0)),
+    "rdii_grade":            Column(str, Check.isin(GRADE_VALUES)),
+    "mean_rise_amp_m":       Column(float, nullable=True),
+    "median_lag_start_h":    Column(float, nullable=True),
+    "median_halflife_h":     Column(float, nullable=True),
+    "mean_qrl":              Column(float, nullable=True),
     "mean_illicit_area_km2": Column(float, nullable=True),
-    "mean_rise_amp_m": Column(float, nullable=True),
-    "median_lag_start_h": Column(float, nullable=True),
-    "median_halflife_h": Column(float, nullable=True),
-    "category": Column(str, Check.isin(CATEGORY_VALUES)),
-    "evidence_score": Column(float, Check.in_range(0, 1)),
-    "notes": Column(str, nullable=True),
+    "category":              Column(str, Check.isin(CATEGORY_VALUES)),
+    "evidence_score":        Column(float, Check.in_range(0, 1)),
+    "notes":                 Column(str, nullable=True),
 }, strict=False, coerce=True)

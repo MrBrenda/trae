@@ -1,8 +1,15 @@
-"""降雨事件自动识别。"""
+"""降雨事件自动识别。
+
+识别逻辑：
+1. 按雨量站逐站识别降雨段（wet run → 合并 → 阈值筛选）
+2. 跨站合并：时间窗口重叠或间隔 < merge_gap_h 的不同站次事件合并为同一场次
+3. 统一事件 ID 按时序编号：E{YYYYMMDD}-{seq:02d}
+4. station_id 保留降雨量最大的"代表站"，n_stations 记录参与该场次的站数
+
+注：后期可基于 Thiessen 多边形对不同节点分配空间权重降雨，目前全区统一用代表站。
+"""
 
 from __future__ import annotations
-
-from datetime import timedelta
 
 import numpy as np
 import pandas as pd
@@ -19,7 +26,7 @@ def detect_events(
     merge_gap_mm: float = 1.0,
     antecedent_dry_h: float = 24.0,
 ) -> pd.DataFrame:
-    """从小时级降雨中识别事件。
+    """从小时级降雨中识别统一降雨事件。
 
     Parameters
     ----------
@@ -28,20 +35,21 @@ def detect_events(
 
     Returns
     -------
-    events : DataFrame with columns
-        ['event_id', 'station_id', 't_start', 't_peak', 't_end',
-         'duration_h', 'total_mm', 'max_intensity_mmh',
-         'antecedent_dry_d', 'compound']
+    events : DataFrame，每行对应一场统一降雨事件，columns：
+        event_id, station_id（代表站）, n_stations（参与站数）,
+        t_start, t_peak, t_end, duration_h, total_mm, max_intensity_mmh,
+        antecedent_dry_d, compound
     """
     required = {"station_id", "ts", "rain_mm_h"}
     missing = required - set(rain_hourly.columns)
     if missing:
         raise ValueError(f"rain_hourly 缺少列：{missing}")
 
-    out_rows: list[dict] = []
+    # 第一步：逐站识别
+    per_station: list[dict] = []
     for sid, sub in rain_hourly.groupby("station_id"):
         sub = sub.sort_values("ts").reset_index(drop=True)
-        events = _detect_for_station(
+        for ev in _detect_for_station(
             sub,
             wet_hour_threshold_mm=wet_hour_threshold_mm,
             min_event_total_mm=min_event_total_mm,
@@ -49,27 +57,78 @@ def detect_events(
             internal_dry_gap_h=internal_dry_gap_h,
             merge_gap_h=merge_gap_h,
             merge_gap_mm=merge_gap_mm,
-        )
-        for ev in events:
+        ):
             ev["station_id"] = sid
-            ev["event_id"] = f"E{ev['t_start'].strftime('%Y%m%d')}-{sid}"
-            out_rows.append(ev)
+            per_station.append(ev)
 
-    if not out_rows:
+    if not per_station:
         return pd.DataFrame(columns=[
-            "event_id", "station_id", "t_start", "t_peak", "t_end",
-            "duration_h", "total_mm", "max_intensity_mmh",
-            "antecedent_dry_d", "compound",
+            "event_id", "station_id", "n_stations", "t_start", "t_peak", "t_end",
+            "duration_h", "total_mm", "max_intensity_mmh", "antecedent_dry_d", "compound",
         ])
 
-    df = pd.DataFrame(out_rows).sort_values(["station_id", "t_start"]).reset_index(drop=True)
-    df = _annotate_antecedent_dry(df, rain_hourly, antecedent_dry_h=antecedent_dry_h)
-    # 列序整理
-    df = df[[
-        "event_id", "station_id", "t_start", "t_peak", "t_end",
-        "duration_h", "total_mm", "max_intensity_mmh",
-        "antecedent_dry_d", "compound",
+    # 第二步：跨站时间合并
+    unified = _unify_across_stations(per_station, merge_gap_h=merge_gap_h)
+
+    # 第三步：排序 + 编号
+    df = pd.DataFrame(unified).sort_values("t_start").reset_index(drop=True)
+    df = _assign_event_ids(df)
+    df = _annotate_antecedent_dry_unified(df, rain_hourly, antecedent_dry_h=antecedent_dry_h)
+
+    return df[[
+        "event_id", "station_id", "n_stations", "t_start", "t_peak", "t_end",
+        "duration_h", "total_mm", "max_intensity_mmh", "antecedent_dry_d", "compound",
     ]]
+
+
+# ---------------------------------------------------------------------------
+# 跨站合并
+# ---------------------------------------------------------------------------
+
+def _unify_across_stations(per_station: list[dict], *, merge_gap_h: float) -> list[dict]:
+    """将不同站的事件按时间窗口合并为统一场次。"""
+    rows = sorted(per_station, key=lambda r: r["t_start"])
+
+    groups: list[tuple[pd.Timestamp, pd.Timestamp, list[dict]]] = []
+    for row in rows:
+        if not groups:
+            groups.append((row["t_start"], row["t_end"], [row]))
+            continue
+        g_start, g_end, members = groups[-1]
+        gap_h = (row["t_start"] - g_end).total_seconds() / 3600.0
+        if gap_h <= merge_gap_h:
+            new_end = max(g_end, row["t_end"])
+            groups[-1] = (g_start, new_end, members + [row])
+        else:
+            groups.append((row["t_start"], row["t_end"], [row]))
+
+    result = []
+    for t_start, t_end, members in groups:
+        dominant = max(members, key=lambda m: m.get("total_mm", 0.0))
+        stations = {m["station_id"] for m in members}
+        duration_h = (t_end - t_start).total_seconds() / 3600.0 + 1.0
+        result.append({
+            "t_start":          t_start,
+            "t_end":            t_end,
+            "t_peak":           dominant["t_peak"],
+            "station_id":       dominant["station_id"],
+            "n_stations":       len(stations),
+            "total_mm":         max(m.get("total_mm", 0.0) for m in members),
+            "max_intensity_mmh": max(m.get("max_intensity_mmh", 0.0) for m in members),
+            "duration_h":       duration_h,
+        })
+    return result
+
+
+def _assign_event_ids(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    ids, date_seq = [], {}
+    for _, row in df.iterrows():
+        d = row["t_start"].strftime("%Y%m%d")
+        seq = date_seq.get(d, 0) + 1
+        date_seq[d] = seq
+        ids.append(f"E{d}-{seq:02d}")
+    df["event_id"] = ids
     return df
 
 
@@ -151,32 +210,28 @@ def _hours_between(a, b) -> float:
     return (b - a).total_seconds() / 3600.0
 
 
-def _annotate_antecedent_dry(
+def _annotate_antecedent_dry_unified(
     events: pd.DataFrame,
     rain_hourly: pd.DataFrame,
     *,
     antecedent_dry_h: float,
 ) -> pd.DataFrame:
+    """按代表站向前查找前期干旱时长。"""
     events = events.copy()
-    dry_h_list: list[float | None] = []
-    compound_list: list[bool] = []
+    dry_list, compound_list = [], []
     for _, ev in events.iterrows():
-        sub = rain_hourly[(rain_hourly["station_id"] == ev["station_id"])
-                          & (rain_hourly["ts"] < ev["t_start"])]
-        if sub.empty:
-            dry_h_list.append(None)
-            compound_list.append(False)
-            continue
-        sub = sub.sort_values("ts")
-        # 从 t_start 向前找最后一个 wet hour
+        sub = rain_hourly[
+            (rain_hourly["station_id"] == ev["station_id"]) &
+            (rain_hourly["ts"] < ev["t_start"])
+        ].sort_values("ts")
         wet = sub[sub["rain_mm_h"].fillna(0) > 0]
         if wet.empty:
-            dry_h_list.append(None)
+            dry_list.append(None)
             compound_list.append(False)
-            continue
-        gap = (ev["t_start"] - wet["ts"].iloc[-1]).total_seconds() / 3600.0
-        dry_h_list.append(float(gap) / 24.0)  # 转天
-        compound_list.append(gap < antecedent_dry_h)
-    events["antecedent_dry_d"] = dry_h_list
+        else:
+            gap_h = (ev["t_start"] - wet["ts"].iloc[-1]).total_seconds() / 3600.0
+            dry_list.append(gap_h / 24.0)
+            compound_list.append(gap_h < antecedent_dry_h)
+    events["antecedent_dry_d"] = dry_list
     events["compound"] = compound_list
     return events

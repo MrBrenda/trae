@@ -18,20 +18,17 @@ from .metrics import (
 from .spatial import station_for_node
 
 
-def _events_to_windows(df: pd.DataFrame) -> dict[str, list[EventWindow]]:
-    """按 station_id 分组返回 EventWindow 列表。"""
-    out: dict[str, list[EventWindow]] = {}
-    for sid, grp in df.groupby("station_id"):
-        out[sid] = [
-            EventWindow(
-                event_id=row["event_id"],
-                t_start=pd.Timestamp(row["t_start"]),
-                t_end=pd.Timestamp(row["t_end"]),
-                total_mm=float(row["total_mm"]),
-            )
-            for _, row in grp.iterrows()
-        ]
-    return out
+def _events_to_windows(df: pd.DataFrame) -> list[EventWindow]:
+    """返回全部统一降雨事件的 EventWindow 列表（跨站合并后，全区共用同一张事件表）。"""
+    return [
+        EventWindow(
+            event_id=row["event_id"],
+            t_start=pd.Timestamp(row["t_start"]),
+            t_end=pd.Timestamp(row["t_end"]),
+            total_mm=float(row["total_mm"]),
+        )
+        for _, row in df.iterrows()
+    ]
 
 
 def _series_at_node(level_df: pd.DataFrame, node_id: str, value_col: str) -> pd.Series:
@@ -58,7 +55,9 @@ def run_metrics() -> dict[str, pd.DataFrame]:
     if not events_p.exists():
         raise FileNotFoundError(f"找不到 {events_p}，请先运行 monitorda events")
     events_df = pd.read_parquet(events_p)
-    windows_by_station = _events_to_windows(events_df)
+    all_events = _events_to_windows(events_df)
+    if not all_events:
+        return {"bwf": pd.DataFrame(), "rdii": pd.DataFrame()}
 
     level_p = p.parquet("node_level_10min")
     flow_p = p.parquet("node_flow_10min")
@@ -71,10 +70,7 @@ def run_metrics() -> dict[str, pd.DataFrame]:
     node_ids: list[str] = sorted((sites().get("nodes") or {}).keys())
 
     for nid in node_ids:
-        sid = station_for_node(nid)
-        if not sid or sid not in windows_by_station:
-            continue
-        events = windows_by_station[sid]
+        events = all_events  # 统一事件，全区共用
 
         level_s = _series_at_node(level_df, nid, "level_m") if not level_df.empty else pd.Series(dtype=float)
         flow_s = _series_at_node(flow_df, nid, "flow_m3s") if not flow_df.empty else pd.Series(dtype=float)
