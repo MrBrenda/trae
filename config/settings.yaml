@@ -16,7 +16,7 @@ ingest:
 events:
   wet_hour_threshold_mm: 0.5        # 单小时降雨 ≥ 0.5mm 记作 wet hour
   min_event_total_mm: 2.0           # 事件累计 ≥ 2mm 才纳入
-  min_event_duration_h: 2.0         # 事件持续 ≥ 2h
+  min_event_duration_h: 1.0         # 事件持续 ≥ 1h（允许短历时强降雨）
   internal_dry_gap_h: 3.0           # 事件内允许的最长干口
   merge_gap_h: 6.0                  # 相邻事件端到端 < 6h 且空隙降雨 < merge_gap_mm 则合并
   merge_gap_mm: 1.0
@@ -26,7 +26,7 @@ events:
 bwf:
   window_days: 14                   # 事件前后各取 ±N 天的旱天数据求基线
   exclude_radius_h: 48              # 旱天窗口内排除任一事件 ±48h 内的数据
-  min_samples: 144                  # 一日 10min 数据 = 144 条，至少要够这么多样本
+  min_samples: 36                   # 最低 36 条（6h），兼容传感器长期 stuck0 节点
   estimator: "median"               # median | mean | trimmed_mean
 
 # RDII 积分
@@ -48,8 +48,8 @@ response:
 diagnose:
   rise_amp_high_m: 3.0              # 升幅 ≥ 3m 记为 High
   rise_amp_low_m: 0.5               # 升幅 ≤ 0.5m 记为 Low（中间为 Medium）
-  direct_connection_lag_min: 5      # 时滞 ≤ 5min 视为直连嫌疑
-  infiltration_halflife_h: 20       # 回落半衰期 ≥ 20h 视为入渗主导
+  direct_connection_lag_min: 60     # 时滞 ≤ 60min 视为直连嫌疑（10min 数据分辨率限制，< 2min 物理响应在此精度下最小可见 ~45min）
+  infiltration_halflife_h: 18       # 回落半衰期 ≥ 18h 视为入渗主导（原 20h，0423 实测 19–28h）
   inflow_halflife_h: 8              # 半衰期 ≤ 8h 视为入流主导
 
 # 数据质量

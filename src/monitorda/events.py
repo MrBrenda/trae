@@ -147,6 +147,8 @@ def _detect_for_station(
     wet = rain >= wet_hour_threshold_mm
 
     # 第一阶段：找连续 wet run，允许内部 ≤ internal_dry_gap_h 干口
+    # 注意：数据是稀疏的（只记录有雨时刻），连续行之间可能存在大时间跳跃。
+    # 必须同时检查时间距离，避免将跨越长期无记录期的两次降雨合并入同一 run。
     raw_runs: list[tuple[int, int]] = []
     i = 0
     n = len(rain)
@@ -158,6 +160,9 @@ def _detect_for_station(
         last_wet = i
         while j + 1 < n:
             gap_h = _hours_between(ts[last_wet], ts[j + 1])
+            # 若距上次湿润时刻超过 merge_gap_h，无论下一行是否为湿润均视为新 run
+            if gap_h > merge_gap_h:
+                break
             if wet[j + 1]:
                 last_wet = j + 1
                 j += 1

@@ -65,6 +65,7 @@ def classify(
 
     stats 字段：
         rise_amp_median   中位液位升幅 (m)
+        rise_amp_max      最大液位升幅 (m)，用于判别峰值事件特征
         lag_start_median  中位起始时滞 (h)
         halflife_median   中位回落半衰期 (h)
         n_events          有效事件数
@@ -73,22 +74,25 @@ def classify(
     cfg        = settings().get("diagnose", {})
     high_rise  = cfg.get("rise_amp_high_m", 3.0)
     low_rise   = cfg.get("rise_amp_low_m", 0.5)
-    direct_lag = cfg.get("direct_connection_lag_min", 5) / 60.0   # → 小时
-    inf_hl     = cfg.get("infiltration_halflife_h", 20)
+    direct_lag = cfg.get("direct_connection_lag_min", 60) / 60.0  # → 小时
+    inf_hl     = cfg.get("infiltration_halflife_h", 18)
     inflow_hl  = cfg.get("inflow_halflife_h", 8)
 
-    rise   = stats.get("rise_amp_median")
-    lag    = stats.get("lag_start_median")
-    hl     = stats.get("halflife_median")
-    n_ev   = stats.get("n_events", 0)
-    usable = stats.get("usable_rate", 0.0) or 0.0
+    rise      = stats.get("rise_amp_median")
+    rise_max  = stats.get("rise_amp_max")
+    lag       = stats.get("lag_start_median")
+    hl        = stats.get("halflife_median")
+    n_ev      = stats.get("n_events", 0)
+    usable    = stats.get("usable_rate", 0.0) or 0.0
 
     # 数据质量门槛
     if n_ev < 2 or usable < 0.3:
         return (RDII_GRADE_NA, "数据不足",
                 min(usable, 0.5), f"有效事件 {n_ev} 场，可用率 {usable:.0%}，结论保留")
 
+    # RDII 分级以中位升幅为准；但若最大升幅达到 High，也记录
     rdii_grade = grade_rdii(rise)
+    peak_is_high = (rise_max is not None and rise_max >= high_rise)
 
     rise_s = f"{rise:.2f}" if rise is not None else "N/A"
     lag_s  = f"{lag*60:.0f}" if lag is not None else "N/A"
@@ -96,7 +100,8 @@ def classify(
 
     # ── 雨水节点 ──────────────────────────────────────────────────────────
     if site_kind == "stormwater":
-        if rdii_grade == RDII_GRADE_LOW:
+        # stuck0 / 全 NA → 无雨水汇入响应，判定低效
+        if rdii_grade in (RDII_GRADE_LOW, RDII_GRADE_NA):
             return (rdii_grade, "雨水管低效", 0.8,
                     f"雨天升幅中位值 {rise_s} m，显著偏低，疑雨水汇入污水管网")
         return (rdii_grade, "未定", 0.5,
@@ -104,33 +109,39 @@ def classify(
 
     # ── 污水节点 ──────────────────────────────────────────────────────────
 
-    # 直连：时滞极短 + 有明显升幅
+    # 直连：时滞短 + 有明显升幅（优先于其他规则）
+    # 注：10min 数据分辨率下最小可检测时滞约 10min，物理< 2min 表现为最短量程
     if (lag is not None and lag <= direct_lag
             and rise is not None and rise >= 1.0):
         return (rdii_grade, "直连", 0.9,
-                f"时滞 {lag_s} min（≤5 min）+ 升幅 {rise_s} m，疑雨水直连接入")
+                f"时滞 {lag_s} min（≤{int(direct_lag*60)} min）+ 升幅 {rise_s} m，疑雨水直连接入")
 
-    # 入渗：半衰期长（缓慢消退）
+    # 混接：高峰值升幅（混接在最强降雨场次集中体现）
+    # — 中位升幅 High，或任意事件升幅达 High 且半衰期不是极长（> 18h 可能是管道充满后慢排）
+    if rdii_grade == RDII_GRADE_HIGH or peak_is_high:
+        # 若半衰期短（快速退水）→ 明确混接
+        if hl is not None and hl <= inflow_hl:
+            return (RDII_GRADE_HIGH if peak_is_high else rdii_grade,
+                    "混接", 0.90,
+                    f"峰值升幅 {rise_max:.2f} m + 半衰期 {hl_s} h，雨水入流主导，疑管网混接")
+        # 半衰期长（管道充满后慢排）或未知 → 仍为混接，置信略低
+        peak_s = f"{rise_max:.2f}" if rise_max is not None else rise_s
+        return (RDII_GRADE_HIGH if peak_is_high else rdii_grade,
+                "混接", 0.75,
+                f"峰值升幅 {peak_s} m，RDII 强烈，疑雨污混接")
+
+    # 入渗：中低升幅 + 长半衰期（地下水缓慢入渗）
+    # 注：入渗不会产生 High 升幅，此规则仅在非 High 节点生效
     if hl is not None and hl >= inf_hl:
         notes = f"回落半衰期 {hl_s} h（≥{inf_hl} h），缓慢退水，地下水入渗主导"
-        if rdii_grade == RDII_GRADE_HIGH:
-            return (rdii_grade, "入渗", 0.75, notes)
         return (rdii_grade, "入渗", 0.80, notes)
 
-    # 混接：高 RDII + 快速退水（入流主导）
-    if rdii_grade == RDII_GRADE_HIGH:
-        if hl is not None and hl <= inflow_hl:
-            return (rdii_grade, "混接", 0.90,
-                    f"升幅 {rise_s} m + 半衰期 {hl_s} h（≤{inflow_hl} h），雨水入流主导，疑管网混接")
-        return (rdii_grade, "混接", 0.70,
-                f"升幅 {rise_s} m，RDII 强烈，疑雨污混接")
-
-    # 中度 RDII：有响应但未超阈值
+    # 中度 RDII：有响应但未达阈值
     if rdii_grade == RDII_GRADE_MEDIUM:
         return (rdii_grade, "未定", 0.45,
                 f"升幅 {rise_s} m，RDII 中等，需结合多场次数据进一步判断")
 
-    # 低 RDII 污水节点：响应弱，暂无问题
+    # 低 RDII 污水节点：响应弱
     return (rdii_grade, "未定", 0.35,
             f"升幅 {rise_s} m，雨天响应弱，污水管网未见明显外来水入侵")
 
@@ -152,6 +163,7 @@ def build_node_diagnostics(
         info  = site_cfg.get(nid, {})
         stats = {
             "rise_amp_median":  _safe_median(grp.get("rise_amp_m")),
+            "rise_amp_max":     _safe_max(grp.get("rise_amp_m")),
             "lag_start_median": _safe_median(grp.get("lag_start_h")),
             "halflife_median":  _safe_median(grp.get("recession_halflife_h")),
             "n_events":         int(grp.shape[0]),
@@ -191,6 +203,13 @@ def _safe_median(s) -> float | None:
         return None
     arr = pd.Series(s).dropna()
     return float(arr.median()) if not arr.empty else None
+
+
+def _safe_max(s) -> float | None:
+    if s is None:
+        return None
+    arr = pd.Series(s).dropna()
+    return float(arr.max()) if not arr.empty else None
 
 
 def _safe_mean(s) -> float | None:
