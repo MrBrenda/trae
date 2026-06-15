@@ -549,6 +549,122 @@ with tab4:
                 fig_pie_s.update_layout(height=240, margin=dict(t=40, b=10))
                 st.plotly_chart(fig_pie_s, width="stretch")
 
+        # ── RTK 单位线分析 ────────────────────────────────────────────────────
+        st.divider()
+        st.subheader("RTK 单位线分析 — 快速入流 vs 慢速入渗定量分解")
+
+        rtk_df = load_parquet("rtk_by_node")
+        rtk_sew = (rtk_df[rtk_df["node_id"].str.startswith("W")].copy()
+                   if not rtk_df.empty else pd.DataFrame())
+
+        RTK_CAT_COLORS = {
+            "fast_inflow":      "#d62728",
+            "mixed":            "#ff7f0e",
+            "slow_infiltration": "#1f77b4",
+            "fit_unreliable":   "#aaaaaa",
+            "data_insufficient": "#dddddd",
+        }
+        RTK_CAT_LABELS = {
+            "fast_inflow":       "入流主导",
+            "mixed":             "混合型",
+            "slow_infiltration": "入渗主导",
+            "fit_unreliable":    "拟合不可靠",
+            "data_insufficient": "数据不足",
+        }
+
+        if rtk_sew.empty:
+            st.info("暂无 RTK 分析结果，请先运行 `monitorda rtk`。")
+        else:
+            # 合并原诊断标签
+            rtk_merged = rtk_sew.merge(
+                sewage_df[["node_id", "pinyin", "category", "rdii_grade"]],
+                on="node_id", how="left",
+            )
+            rtk_merged["rtk_label"] = rtk_merged["category_rtk"].map(RTK_CAT_LABELS)
+            rtk_merged["slow_fraction"] = 1.0 - rtk_merged["fast_fraction"].fillna(0)
+
+            rc1, rc2 = st.columns([3, 2])
+
+            with rc1:
+                # 堆叠条形图：快速入流 vs 慢速入渗比例
+                fit_ok = rtk_merged[
+                    ~rtk_merged["category_rtk"].isin(["data_insufficient", "fit_unreliable"])
+                ].sort_values("fast_fraction", ascending=False)
+
+                if fit_ok.empty:
+                    st.info("可用 RTK 拟合结果不足，需要更多数据覆盖。")
+                else:
+                    labels = fit_ok["pinyin"].fillna(fit_ok["node_id"])
+                    fig_rtk = go.Figure()
+                    fig_rtk.add_trace(go.Bar(
+                        name="快速入流 (R1)",
+                        x=labels, y=fit_ok["fast_fraction"] * 100,
+                        marker_color="#d62728", text=(fit_ok["fast_fraction"] * 100).round(0).astype(int).astype(str) + "%",
+                        textposition="inside",
+                    ))
+                    fig_rtk.add_trace(go.Bar(
+                        name="慢速入渗 (R2)",
+                        x=labels, y=fit_ok["slow_fraction"] * 100,
+                        marker_color="#1f77b4",
+                    ))
+                    fig_rtk.update_layout(
+                        barmode="stack", height=300, margin=dict(t=40, b=10),
+                        title="快速入流 / 慢速入渗分解比例（RTK 拟合）",
+                        yaxis_title="%", legend=dict(orientation="h", y=1.12),
+                    )
+                    st.plotly_chart(fig_rtk, width="stretch")
+
+            with rc2:
+                # RTK 参数明细表
+                rtk_cols = {
+                    "node_id": "节点", "category": "规则诊断",
+                    "category_rtk": "RTK分类",
+                    "fast_fraction": "入流比例",
+                    "T1_h": "T1(h)", "T2_h": "T2(h)",
+                    "r2": "R²", "n_events_used": "事件数",
+                }
+                present_r = [c for c in rtk_cols if c in rtk_merged.columns]
+                disp_r = rtk_merged[present_r].rename(columns=rtk_cols).copy()
+                for col in ["入流比例", "R²"]:
+                    if col in disp_r.columns:
+                        disp_r[col] = disp_r[col].apply(
+                            lambda v: f"{v:.0%}" if pd.notna(v) else "—"
+                        )
+                for col in ["T1(h)", "T2(h)"]:
+                    if col in disp_r.columns:
+                        disp_r[col] = disp_r[col].apply(
+                            lambda v: f"{v:.1f}" if pd.notna(v) else "—"
+                        )
+                disp_r["RTK分类"] = disp_r["RTK分类"].map(RTK_CAT_LABELS).fillna(disp_r["RTK分类"])
+
+                def _style_rtk(row):
+                    styles = []
+                    for c in row.index:
+                        if c == "RTK分类":
+                            inv_map = {v: k for k, v in RTK_CAT_LABELS.items()}
+                            key = inv_map.get(row[c], row[c])
+                            color = RTK_CAT_COLORS.get(key, "#7f7f7f")
+                            styles.append(f"background-color:{color}22;font-weight:600")
+                        else:
+                            styles.append("")
+                    return styles
+
+                st.dataframe(
+                    disp_r.style.apply(_style_rtk, axis=1),
+                    width="stretch", hide_index=True, height=360,
+                )
+
+            # RTK 方法说明
+            with st.expander("方法说明：RTK 三参数单位线"):
+                st.markdown(
+                    "**RTK 方法**（来源：EPA RDII Analysis / SSOAP Toolbox）使用两组三角形单位线，"
+                    "分别拟合**快速入流**（雨水直连/混接，T1 = 峰值时间 < 12h）"
+                    "和**慢速入渗**（地下水/管壁渗漏，T2 ≥ 24h）的贡献比例。\n\n"
+                    "- **R1 / R2**：各分量对降雨量的响应系数（m 液位升幅 / mm 降雨），越大表示贡献越强\n"
+                    "- **入流比例** = R1 / (R1 + R2)：超过 65% 为入流主导，低于 30% 为入渗主导\n"
+                    "- **R²**：拟合优度（决定系数）。低于 0.05 标记为「拟合不可靠」，通常源于数据覆盖不足"
+                )
+
         # ── 雨水节点 ──────────────────────────────────────────────────────────
         st.divider()
         st.subheader("雨水节点 — 运行状态")

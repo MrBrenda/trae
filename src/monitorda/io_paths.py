@@ -110,8 +110,8 @@ class Paths:
     # 标准 interim 表
     def parquet(self, kind: str) -> Path:
         """kind ∈ {plant_inlet_10min, node_level_10min, node_flow_10min,
-        rainfall_hourly, events, bwf_by_node, rdii_by_event_node, node_diagnostics}"""
-        if kind in {"events", "bwf_by_node", "rdii_by_event_node", "node_diagnostics"}:
+        rainfall_hourly, events, bwf_by_node, rdii_by_event_node, node_diagnostics, rtk_by_node}"""
+        if kind in {"events", "bwf_by_node", "rdii_by_event_node", "node_diagnostics", "rtk_by_node"}:
             return self.processed / f"{kind}.parquet"
         return self.interim / f"{kind}.parquet"
 

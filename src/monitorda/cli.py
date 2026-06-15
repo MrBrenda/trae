@@ -130,6 +130,25 @@ def report(
 
 
 @app.command()
+def rtk() -> None:
+    """对每个节点拟合 2-分量 RTK 单位线，量化快速入流与慢速入渗比例。"""
+    from .rtk import run_rtk
+    df = run_rtk()
+    sewage = df[df["node_id"].str.startswith("W")]
+    typer.echo(f"RTK 拟合完成，共 {len(df)} 个节点（{len(sewage)} 个污水节点）：\n")
+    for _, r in sewage.iterrows():
+        if r["category_rtk"] == "data_insufficient":
+            typer.echo(f"  {r['node_id']:5s}  数据不足（{r['n_events_used']} 场事件）")
+        else:
+            typer.echo(
+                f"  {r['node_id']:5s}  {r['category_rtk']:20s}  "
+                f"fast_frac={r['fast_fraction']:.0%}  "
+                f"T1={r['T1_h']:.1f}h  T2={r['T2_h']:.0f}h  "
+                f"R²={r['r2']:.3f}"
+            )
+
+
+@app.command()
 def run(
     since: Optional[str] = typer.Option(None, "--since", help="不参与计算，仅用于元数据"),
     until: Optional[str] = typer.Option(None, "--until"),
