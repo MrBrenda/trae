@@ -141,6 +141,7 @@ def fit_rtk_node(
     station_id: str | None = None,
     n_starts: int = 8,
     dt_h: float = 1.0,
+    min_obs_per_event: int = _MIN_OBS_PER_EVENT,
 ) -> RTKResult:
     """对单个节点进行 2-分量 RTK 拟合。
 
@@ -215,7 +216,7 @@ def fit_rtk_node(
         obs_full = np.concatenate([np.full(len(lead_range), np.nan), obs_rdii])
 
         n_valid = np.sum(~np.isnan(obs_rdii))
-        if n_valid < _MIN_OBS_PER_EVENT:
+        if n_valid < min_obs_per_event:
             continue
 
         obs_segs.append(obs_full)
@@ -345,7 +346,9 @@ def run_rtk() -> pd.DataFrame:
         s = grp.set_index("ts")["rain_mm_h"].sort_index()
         rain_dict[str(sid)] = s
 
-    node_ids = sorted((sites().get("nodes") or {}).keys())
+    site_cfg = sites().get("nodes") or {}
+    # RTK 仅对污水管网测点有意义
+    node_ids = sorted(nid for nid, cfg in site_cfg.items() if cfg.get("kind") == "sewage")
     results = []
 
     for nid in node_ids:
@@ -354,6 +357,23 @@ def run_rtk() -> pd.DataFrame:
             .set_index("ts")["level_m"]
             .sort_index()
         )
+
+        # 计算该节点在所有事件窗口内的小时级数据覆盖率，以决定最小观测阈值
+        # 覆盖率低（<30%）时降至 4 小时，允许稀疏节点的事件参与拟合
+        min_obs = _MIN_OBS_PER_EVENT
+        if not lv_node.empty and not events_df.empty:
+            total_window_h, total_valid_h = 0, 0
+            for _, ev in events_df.iterrows():
+                t0 = pd.Timestamp(ev["t_start"])
+                t1 = pd.Timestamp(ev["t_end"]) + pd.Timedelta(hours=72)
+                t_range = pd.date_range(t0, t1, freq="h")
+                total_window_h += len(t_range)
+                lv_win = lv_node.loc[t0:t1].resample("h").mean().reindex(t_range)
+                total_valid_h += int((~lv_win.isna()).sum())
+            coverage = total_valid_h / max(total_window_h, 1)
+            if coverage < 0.30:
+                min_obs = 4  # 稀疏节点：放宽至 4 小时/事件
+
         sid = station_for_node(nid)
         result = fit_rtk_node(
             node_id=nid,
@@ -362,6 +382,7 @@ def run_rtk() -> pd.DataFrame:
             events_df=events_df,
             bwf_df=bwf_df,
             station_id=sid,
+            min_obs_per_event=min_obs,
         )
         results.append({
             "node_id":        result.node_id,

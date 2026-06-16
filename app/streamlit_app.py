@@ -41,6 +41,8 @@ PIPELINE_STAGES = [
     ("metrics",  "④ 指标计算"),
     ("diagnose", "⑤ 节点诊断"),
     ("report",   "⑥ 生成报告"),
+    ("rtk",      "⑦ RTK分析"),
+    ("nmf",      "⑧ NMF分析"),
 ]
 
 PARQUET_STATUS_ITEMS = [
@@ -51,6 +53,8 @@ PARQUET_STATUS_ITEMS = [
     ("bwf_by_node",        "BWF 基线"),
     ("rdii_by_event_node", "RDII 指标"),
     ("node_diagnostics",   "节点诊断"),
+    ("rtk_by_node",       "RTK 分析"),
+    ("nmf_summary",       "NMF 分析"),
 ]
 
 # ── 数据加载（带缓存）────────────────────────────────────────────────────────
@@ -554,8 +558,7 @@ with tab4:
         st.subheader("RTK 单位线分析 — 快速入流 vs 慢速入渗定量分解")
 
         rtk_df = load_parquet("rtk_by_node")
-        rtk_sew = (rtk_df[rtk_df["node_id"].str.startswith("W")].copy()
-                   if not rtk_df.empty else pd.DataFrame())
+        rtk_sew = rtk_df.copy() if not rtk_df.empty else pd.DataFrame()
 
         RTK_CAT_COLORS = {
             "fast_inflow":      "#d62728",
@@ -663,6 +666,148 @@ with tab4:
                     "- **R1 / R2**：各分量对降雨量的响应系数（m 液位升幅 / mm 降雨），越大表示贡献越强\n"
                     "- **入流比例** = R1 / (R1 + R2)：超过 65% 为入流主导，低于 30% 为入渗主导\n"
                     "- **R²**：拟合优度（决定系数）。低于 0.05 标记为「拟合不可靠」，通常源于数据覆盖不足"
+                )
+
+        # ── NMF 夜间最小液位分析 ──────────────────────────────────────────────
+        st.divider()
+        st.subheader("NMF 夜间基流分析 — 背景入渗对降雨的敏感性（NMFD）")
+
+        nmf_summary_df = load_parquet("nmf_summary")
+        nmf_daily_df   = load_parquet("nmf_by_node")
+
+        NMFD_CAT_COLORS = {
+            "high_infiltration": "#d62728",
+            "moderate":          "#ff7f0e",
+            "low":               "#2ca02c",
+            "negative_response": "#9467bd",
+            "no_post_data":      "#bcbd22",
+            "data_insufficient": "#dddddd",
+        }
+        NMFD_CAT_LABELS = {
+            "high_infiltration": "入渗显著（≥30%）",
+            "moderate":          "中度入渗（10–30%）",
+            "low":               "入渗微弱（<10%）",
+            "negative_response": "负响应（水力效应）",
+            "no_post_data":      "无雨后数据",
+            "data_insufficient": "数据不足",
+        }
+
+        if nmf_summary_df.empty:
+            st.info("暂无 NMF 分析结果，请先运行 `monitorda nmf`。")
+        else:
+            nmf_merged = nmf_summary_df.merge(
+                sewage_df[["node_id", "pinyin", "category"]],
+                on="node_id", how="left",
+            )
+            nmf_merged["nmfd_label"] = nmf_merged["category_nmfd"].map(NMFD_CAT_LABELS)
+
+            nc1, nc2 = st.columns([2, 3])
+
+            with nc1:
+                # NMFD 摘要表
+                nmfd_cols = {
+                    "node_id": "节点", "pinyin": "拼音缩写", "category": "规则诊断",
+                    "nml_dry_m": "旱夜NML(m)", "nml_post_m": "雨后NML(m)",
+                    "nmfd_abs_m": "抬升量(m)", "nmfd_ratio": "NMFD",
+                    "n_dry_nights": "旱夜数", "n_post_nights": "雨后夜数",
+                }
+                present_nc = [c for c in nmfd_cols if c in nmf_merged.columns]
+                disp_nmfd = nmf_merged[present_nc].rename(columns=nmfd_cols).copy()
+                for col in ["旱夜NML(m)", "雨后NML(m)", "抬升量(m)"]:
+                    if col in disp_nmfd.columns:
+                        disp_nmfd[col] = disp_nmfd[col].apply(
+                            lambda v: f"{v:.3f}" if pd.notna(v) else "—"
+                        )
+                if "NMFD" in disp_nmfd.columns:
+                    disp_nmfd["NMFD"] = disp_nmfd["NMFD"].apply(
+                        lambda v: f"{v:.0%}" if pd.notna(v) else "—"
+                    )
+
+                def _style_nmfd(row):
+                    inv = {v: k for k, v in NMFD_CAT_LABELS.items()}
+                    styles = []
+                    for c in row.index:
+                        if c == "NMFD":
+                            # 从 nmf_merged 取 category_nmfd
+                            node = row.get("节点", "")
+                            cat_row = nmf_merged[nmf_merged["node_id"] == node]
+                            cat = cat_row["category_nmfd"].values[0] if not cat_row.empty else ""
+                            color = NMFD_CAT_COLORS.get(cat, "#7f7f7f")
+                            styles.append(f"background-color:{color}22;font-weight:600")
+                        else:
+                            styles.append("")
+                    return styles
+
+                st.dataframe(
+                    disp_nmfd.style.apply(_style_nmfd, axis=1),
+                    width="stretch", hide_index=True, height=360,
+                )
+
+            with nc2:
+                # 按节点展示旱夜 vs 雨后 NML 对比柱状图（有数据的节点）
+                has_both = nmf_merged.dropna(subset=["nml_dry_m", "nml_post_m"])
+                if not has_both.empty:
+                    labels_n = has_both["pinyin"].fillna(has_both["node_id"])
+                    fig_nmf = go.Figure()
+                    fig_nmf.add_trace(go.Bar(
+                        name="旱夜 NML", x=labels_n, y=has_both["nml_dry_m"],
+                        marker_color="#4878cf",
+                    ))
+                    fig_nmf.add_trace(go.Bar(
+                        name="雨后 NML", x=labels_n, y=has_both["nml_post_m"],
+                        marker_color="#d62728",
+                    ))
+                    fig_nmf.update_layout(
+                        barmode="group", height=300, margin=dict(t=40, b=10),
+                        title="旱夜 vs 雨后夜间最小液位（NML）对比",
+                        yaxis_title="m", legend=dict(orientation="h", y=1.12),
+                    )
+                    st.plotly_chart(fig_nmf, width="stretch")
+
+                # 单节点 NML 时序图（选择器）
+                if not nmf_daily_df.empty:
+                    st.caption("选择节点查看 NML 时序：")
+                    node_opts_nmf = sorted(nmf_daily_df["node_id"].unique())
+                    sel_nmf = st.selectbox(
+                        "节点", node_opts_nmf,
+                        format_func=lambda x: get_site_cfg().get("nodes", {}).get(x, {}).get("pinyin", x),
+                        key="nmf_node_sel",
+                    )
+                    ts_node = nmf_daily_df[nmf_daily_df["node_id"] == sel_nmf].dropna(subset=["nml_m"])
+                    if not ts_node.empty:
+                        fig_ts = go.Figure()
+                        dry_pts  = ts_node[ts_node["is_dry"]]
+                        post_pts = ts_node[ts_node["is_post_rain"]]
+                        other_pts = ts_node[~ts_node["is_dry"] & ~ts_node["is_post_rain"]]
+                        for pts, name, color, symbol in [
+                            (dry_pts,   "旱夜", "#4878cf",  "circle"),
+                            (post_pts,  "雨后", "#d62728",  "diamond"),
+                            (other_pts, "其他", "#aaaaaa",  "x"),
+                        ]:
+                            if not pts.empty:
+                                fig_ts.add_trace(go.Scatter(
+                                    x=pts["date"], y=pts["nml_m"],
+                                    mode="markers", name=name,
+                                    marker=dict(color=color, size=6, symbol=symbol),
+                                ))
+                        fig_ts.update_layout(
+                            height=220, margin=dict(t=30, b=10),
+                            yaxis_title="NML (m)",
+                            legend=dict(orientation="h", y=1.12),
+                        )
+                        st.plotly_chart(fig_ts, width="stretch")
+
+            with st.expander("方法说明：NMF 夜间最小流量法"):
+                st.markdown(
+                    "**NMF 方法**（来源：EPA、T/CECS 1764-2024）基于"凌晨 02:00–04:00 居民用水量可忽略"假设：\n\n"
+                    "此时段管网内的液位（Night Minimum Level, NML）主要反映地下水持续渗入的**背景入渗底线**，"
+                    "与 RTK 分析的事件响应相互补充。\n\n"
+                    "- **旱夜 NML**：无雨或雨后 96h+ 的基线水平，代表常态入渗量\n"
+                    "- **雨后 NML**：降雨结束 12–96h 内的夜间液位，反映地下水位抬升后的入渗增量\n"
+                    "- **NMFD = (雨后 NML − 旱夜 NML) / 旱夜 NML**：入渗对降雨的敏感程度\n"
+                    "  - ≥ 30%：高度入渗响应，管网存在大量地下水渗漏缺陷\n"
+                    "  - 10%–30%：中度响应\n"
+                    "  - < 10%：低响应，入流可能为主导（或传感器灵敏度不足）"
                 )
 
         # ── 雨水节点 ──────────────────────────────────────────────────────────

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Optional
 
 import pandas as pd
 import typer
@@ -103,7 +102,7 @@ def diagnose() -> None:
 
 @app.command()
 def report(
-    run_date_str: Optional[str] = typer.Option(None, "--date", help="报告日期 YYYY-MM-DD"),
+    run_date_str: str | None = typer.Option(None, "--date", help="报告日期 YYYY-MM-DD"),
 ) -> None:
     """生成 Markdown + DOCX 报告到 reports/<date>/。"""
     from .figures import node_rise_amp_bar, plant_inlet_timeseries, site_map
@@ -134,9 +133,8 @@ def rtk() -> None:
     """对每个节点拟合 2-分量 RTK 单位线，量化快速入流与慢速入渗比例。"""
     from .rtk import run_rtk
     df = run_rtk()
-    sewage = df[df["node_id"].str.startswith("W")]
-    typer.echo(f"RTK 拟合完成，共 {len(df)} 个节点（{len(sewage)} 个污水节点）：\n")
-    for _, r in sewage.iterrows():
+    typer.echo(f"RTK 拟合完成，共 {len(df)} 个污水节点：\n")
+    for _, r in df.iterrows():
         if r["category_rtk"] == "data_insufficient":
             typer.echo(f"  {r['node_id']:5s}  数据不足（{r['n_events_used']} 场事件）")
         else:
@@ -149,9 +147,32 @@ def rtk() -> None:
 
 
 @app.command()
+def nmf() -> None:
+    """对每个污水节点计算夜间最小液位（NML），量化背景入渗对降雨的敏感性（NMFD）。"""
+    from .nmf import run_nmf
+    _, summary = run_nmf()
+    typer.echo(f"NMF 分析完成，共 {len(summary)} 个污水节点：\n")
+    for _, r in summary.iterrows():
+        cat = r["category_nmfd"]
+        ratio_str = f"{r['nmfd_ratio']:.0%}" if r["nmfd_ratio"] is not None else "—"
+        abs_str   = f"{r['nmfd_abs_m']:+.3f}m" if r["nmfd_abs_m"] is not None else "—"
+        dry_str   = f"{r['nml_dry_m']:.3f}m" if r["nml_dry_m"] is not None else "—"
+        if cat in ("data_insufficient",):
+            typer.echo(f"  {r['node_id']:5s}  {cat:22s}  （旱夜={r['n_dry_nights']}天）")
+        elif cat == "no_post_data":
+            typer.echo(f"  {r['node_id']:5s}  {cat:22s}  旱夜NML={dry_str}  （旱夜={r['n_dry_nights']}天，无雨后夜数据）")
+        else:
+            typer.echo(
+                f"  {r['node_id']:5s}  {cat:22s}  "
+                f"旱夜NML={dry_str}  雨后Δ={abs_str}  NMFD={ratio_str}  "
+                f"（旱夜={r['n_dry_nights']}天，雨后={r['n_post_nights']}天）"
+            )
+
+
+@app.command()
 def run(
-    since: Optional[str] = typer.Option(None, "--since", help="不参与计算，仅用于元数据"),
-    until: Optional[str] = typer.Option(None, "--until"),
+    since: str | None = typer.Option(None, "--since", help="不参与计算，仅用于元数据"),
+    until: str | None = typer.Option(None, "--until"),
 ) -> None:
     """端到端：ingest → clean → events → metrics → diagnose → report。"""
     typer.echo(">>> 1/6 ingest")
@@ -174,8 +195,9 @@ def verify(
     against: str = typer.Option("tests/expected_0423.yaml", "--against", help="期望值 YAML 路径"),
 ) -> None:
     """与期望值对照，打印差异表。"""
-    import yaml
     from pathlib import Path
+
+    import yaml
     p = paths()
     exp_path = Path(against)
     if not exp_path.is_absolute():

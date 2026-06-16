@@ -24,7 +24,11 @@ Single test / single stage:
 .venv/bin/monitorda verify --against tests/expected_0423.yaml   # print a diff table vs expected (no assert)
 ```
 
-The CLI is the entry point for everything: `monitorda {ingest,clean,events,metrics,diagnose,report,run,verify,version}` (Typer app at `monitorda.cli:app`). Each stage reads/writes parquet and can be run independently as long as upstream parquet exists.
+The CLI is the entry point for everything: `monitorda {ingest,clean,events,metrics,diagnose,report,rtk,nmf,run,verify,version}` (Typer app at `monitorda.cli:app`). Each stage reads/writes parquet and can be run independently as long as upstream parquet exists.
+
+Supplementary analysis commands (sewage nodes only, independent of main pipeline):
+- `monitorda rtk` — 2-component RTK unit hydrograph fitting (fast inflow / slow infiltration separation); outputs `data/processed/rtk_by_node.parquet`
+- `monitorda nmf` — Night Minimum Level (NML) analysis; NMFD ratio quantifies background infiltration sensitivity to rainfall; outputs `nmf_by_node.parquet` + `nmf_summary.parquet`
 
 ## Architecture
 
